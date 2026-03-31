@@ -22,7 +22,6 @@ module.exports = {
   },
   output: {
     path: path.resolve(__dirname, './dist'),
-    #publicPath: process.env.VERSION ==='' || process.env.VERSION.includes("akto-release-version") ? '/polaris_web/web/dist/':  'https://d1hvi6xs55woen.cloudfront.net/polaris_web/' + process.env.VERSION +  '/dist/',
     publicPath: '/polaris_web/web/dist/',
     filename: '[name].js'
   },
