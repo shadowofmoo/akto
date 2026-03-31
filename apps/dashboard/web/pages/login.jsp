@@ -120,6 +120,26 @@
                     // Enabling the debug mode flag is useful during implementation,
                     // but it's recommended you remove it for production
 
+                    // 绕过过期检查
+                    window.EXPIRED = 'false';
+
+                    // 绕过计划类型检查
+                    window.PLAN_TYPE = 'enterprise';
+
+                    // 绕过 Stigg 配置
+                    window.STIGG_CLIENT_KEY = 'local-test-key';
+                    window.STIGG_CUSTOMER_ID = 'local-test-customer';
+                    window.STIGG_CUSTOMER_TOKEN = 'local-test-token';
+
+                    // 绕过部署模式限制
+                    window.DASHBOARD_MODE = 'LOCAL_DEPLOY';
+                    window.IS_SAAS = 'false';
+
+                    // 绕过功能访问限制
+                    window.STIGG_FEATURE_WISE_ALLOWED = {};
+                    window.STIGG_IS_OVERAGE = 'false';
+                    window.USAGE_PAUSED = { dataIngestion: false, testRuns: false };
+
                     if (window.USER_NAME.length > 0) {
                         // Initialize mixpanel
                         if(window.IS_SAAS == 'true'){
@@ -196,15 +216,7 @@
                 <script>
                     var script = document.createElement('script');
                     script.type = "text/javascript"
-                    if ('${requestScope.nodeEnv}' === 'development') {
-                        script.src = "http://localhost:3000/dist/main.js";
-                    } else if (window.RELEASE_VERSION_GLOBAL == '' || window.RELEASE_VERSION_GLOBAL == 'akto-release-version') {
-                        script.src = "/polaris_web/web/dist/main.js";
-                    } else if (window.RELEASE_VERSION == '' || window.RELEASE_VERSION == 'akto-release-version') {
-                        script.src = "https://d1hvi6xs55woen.cloudfront.net/polaris_web/" + window.RELEASE_VERSION_GLOBAL + "/dist/main.js";
-                    } else {
-                        script.src = "https://d1hvi6xs55woen.cloudfront.net/polaris_web/" + window.RELEASE_VERSION + "/dist/main.js";
-                    }
+                    script.src = "/polaris_web/web/dist/main.js";
                     document.body.appendChild(script);
                 </script>
             </body>
