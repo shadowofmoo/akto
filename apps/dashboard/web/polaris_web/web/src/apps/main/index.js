@@ -16,12 +16,13 @@ const root = createRoot(container);
 let expired = false;
 const ALLOWED_PLANS = ['enterprise', 'professional', 'trial'];
 
-if (
-  window.STIGG_CUSTOMER_ID &&
-  (window.EXPIRED && window.EXPIRED == 'true')) {
+// Skip expired check
+// if (
+//   window.STIGG_CUSTOMER_ID &&
+//   (window.EXPIRED && window.EXPIRED == 'true')) {
 
-  expired = true;
-}
+//   expired = true;
+// }
 
 // Bypass FreeApp for signup/login related pages
 const signupPages = ['/check-inbox', '/business-email', '/signup', '/sso-login', '/addUserToAccount', '/login'];
@@ -30,16 +31,6 @@ const isSignupPage = signupPages.some(page => currentPath.startsWith(page));
 const isWhitelisted = func.isWhiteListedOrganization();
 
 let free = false
-if(isWhitelisted || isSignupPage) {
-  free = false; // Whitelisted users & Signup pages should not block user
-} else {
-  // For non-whitelisted, non-signup users, check plan type
-  if(window.PLAN_TYPE && ALLOWED_PLANS.includes(window.PLAN_TYPE.toLowerCase())) {
-    free = false; // Valid plan type = no restrictions
-  } else {
-    free = true; // No valid plan = Block user
-  }
-}
 
 
 if (expired) {
