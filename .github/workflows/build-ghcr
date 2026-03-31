@@ -1,0 +1,163 @@
+name: Build and Push to GitHub Container Registry
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release version (e.g., 1.0.0)'
+        required: true
+        default: 'latest'
+      skipTests:
+        description: 'Skip unit tests?'
+        required: true
+        default: 'True'
+        type: choice
+        options:
+          - 'False'
+          - 'True'
+      dashboard:
+        type: boolean
+        default: true
+        description: Build Dashboard
+      testing:
+        type: boolean
+        default: false
+        description: Build Testing (optional)
+      billing:
+        type: boolean
+        default: false
+        description: Build Billing (optional)
+      internal:
+        type: boolean
+        default: false
+        description: Build Internal (optional)
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-22.04
+    if: ${{ github.event.inputs.dashboard == 'true' || github.event.inputs.testing == 'true' || github.event.inputs.billing == 'true' || github.event.inputs.internal == 'true' }}
+    permissions:
+      contents: read
+      packages: write  # 允许写入 GitHub Container Registry
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v2
+        with:
+          distribution: 'adopt'
+          java-version: '8'
+          architecture: x64
+
+      - name: Set up Node.js 17
+        uses: actions/setup-node@v2
+        with:
+          node-version: '17'
+
+      - name: Setup Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '29.2'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup buf
+        uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+
+      # 下载外部资源（Dashboard 需要）
+      - name: Download Akto templates and PII files
+        if: ${{ github.event.inputs.dashboard == 'true' }}
+        working-directory: ./apps/dashboard/src/main/resources
+        run: |
+          wget -O tests-library-master.zip https://github.com/akto-api-security/tests-library/archive/refs/heads/master.zip
+          wget -O general.json https://raw.githubusercontent.com/akto-api-security/pii-types/master/general.json
+          wget -O fintech.json https://raw.githubusercontent.com/akto-api-security/akto/master/pii-types/fintech.json
+          wget -O filetypes.json https://raw.githubusercontent.com/akto-api-security/akto/master/pii-types/filetypes.json
+          wget -O automated_api_groups.csv https://raw.githubusercontent.com/akto-api-security/akto/master/automated-api-groups/automated-api-groups.csv
+
+      # 构建 Dashboard 前端（仅当需要时）
+      - name: Build Dashboard frontend
+        if: ${{ github.event.inputs.dashboard == 'true' }}
+        working-directory: ./apps/dashboard/web/polaris_web
+        run: |
+          npm install
+          export RELEASE_VERSION=${{ github.event.inputs.release_version }}
+          npm run build
+
+      # Maven 打包（所有 Java 服务都会使用）
+      - name: Maven package
+        if: ${{ github.event.inputs.skipTests == 'False' }}
+        run: |
+          mvn package -Dakto-image-tag=${{ github.event.inputs.release_version }} \
+                      -Dakto-build-time=$(date +%s) \
+                      -Dakto-release-version=${{ github.event.inputs.release_version }}
+
+      - name: Maven package (skip tests)
+        if: ${{ github.event.inputs.skipTests == 'True' }}
+        run: |
+          mvn package -DskipTests \
+                      -Dakto-image-tag=${{ github.event.inputs.release_version }} \
+                      -Dakto-build-time=$(date +%s) \
+                      -Dakto-release-version=${{ github.event.inputs.release_version }}
+
+      # 登录 GitHub Container Registry
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 设置 Docker Buildx（用于多平台构建）
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # 构建并推送 Dashboard
+      - name: Build and push Dashboard
+        if: ${{ github.event.inputs.dashboard == 'true' }}
+        uses: docker/build-push-action@v4
+        with:
+          context: ./apps/dashboard
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/akto-dashboard:${{ github.event.inputs.release_version }}
+            ghcr.io/${{ github.repository_owner }}/akto-dashboard:latest
+
+      # 构建并推送 Testing（如果选择）
+      - name: Build and push Testing
+        if: ${{ github.event.inputs.testing == 'true' }}
+        uses: docker/build-push-action@v4
+        with:
+          context: ./apps/testing
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/akto-testing:${{ github.event.inputs.release_version }}
+            ghcr.io/${{ github.repository_owner }}/akto-testing:latest
+
+      # 构建并推送 Billing（如果选择）
+      - name: Build and push Billing
+        if: ${{ github.event.inputs.billing == 'true' }}
+        uses: docker/build-push-action@v4
+        with:
+          context: ./apps/billing
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/akto-billing:${{ github.event.inputs.release_version }}
+            ghcr.io/${{ github.repository_owner }}/akto-billing:latest
+
+      # 构建并推送 Internal（如果选择）
+      - name: Build and push Internal
+        if: ${{ github.event.inputs.internal == 'true' }}
+        uses: docker/build-push-action@v4
+        with:
+          context: ./apps/internal
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/akto-internal:${{ github.event.inputs.release_version }}
+            ghcr.io/${{ github.repository_owner }}/akto-internal:latest
